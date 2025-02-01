@@ -27,7 +27,6 @@
       font-weight: bold;
     }
 
-
     textarea,
     select,
     button {
@@ -40,7 +39,6 @@
 
     textarea {
       width: calc(100% - 20px);
-      /* 文本输入框比其他元素宽20px */
     }
 
     button {
@@ -57,6 +55,14 @@
     #audio_player {
       width: 100%;
       margin-top: 20px;
+    }
+
+    #recognized_text {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      min-height: 100px;
+      font-size: 16px;
     }
   </style>
 </head>
@@ -80,7 +86,6 @@
         <option value="zh-CN-YunxiNeural">云溪</option>
         <option value="zh-CN-YunxiaNeural">云晓</option>
         <option value="zh-CN-YunyangNeural">云扬</option>
-        <!-- 可以添加更多音色选项 -->
       </select>
     </div>
 
@@ -89,13 +94,18 @@
     </div>
 
     <audio id="audio_player" controls></audio>
+
+    <div>
+      <button id="start_recognition_button">开始识别</button>
+      <button id="stop_recognition_button" disabled>停止识别</button>
+    </div>
+
+    <div id="recognized_text"></div>
   </div>
 
   <script>
     $(document).ready(function () {
-      // 获取当前页面的URL
       var currentURL = window.location.href;
-      // 去掉参数部分
       var baseURL = currentURL.split(/[?#]/)[0];
       var audioPlayer = document.getElementById("audio_player");
 
@@ -103,7 +113,6 @@
         var text = $("#text_input").val();
         var voice = $("#voice_select").val();
 
-        // 发送生成音频的请求，并设置音频播放链接
         $.ajax({
           url: baseURL + "/generate",
           type: 'POST',
@@ -111,14 +120,53 @@
           data: JSON.stringify({ content: text, voice: voice }),
           success: function (data, status) {
             if (status == "success") {
-              // 设置音频链接
-              audioPlayer.src = baseURL+data.audio_url;
+              audioPlayer.src = baseURL + data.audio_url;
               audioPlayer.play();
             } else {
               alert("生成音频失败，请稍后重试。");
             }
           }
         });
+      });
+
+      var recognitionStream;
+      var recognizedText = $("#recognized_text");
+
+      $("#start_recognition_button").click(function () {
+        recognizedText.text("");
+        $(this).prop("disabled", true);
+        $("#stop_recognition_button").prop("disabled", false);
+
+        recognitionStream = new webkitSpeechRecognition();
+        recognitionStream.continuous = true;
+        recognitionStream.interimResults = true;
+        recognitionStream.lang = "zh-CN";
+
+        recognitionStream.onresult = function (event) {
+          var interimTranscript = '';
+          var finalTranscript = '';
+
+          for (var i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            } else {
+              interimTranscript += event.results[i][0].transcript;
+            }
+          }
+
+          recognizedText.html("<strong>Interim:</strong> " + interimTranscript + "<br><strong>Final:</strong> " + finalTranscript);
+        };
+
+        recognitionStream.start();
+      });
+
+      $("#stop_recognition_button").click(function () {
+        $(this).prop("disabled", true);
+        $("#start_recognition_button").prop("disabled", false);
+
+        if (recognitionStream) {
+          recognitionStream.stop();
+        }
       });
     });
   </script>

@@ -1,15 +1,22 @@
 import binascii
 import uuid
-
+import os
+import asyncio
+import numpy as np
 from quart import Quart, request, jsonify, Response, render_template
 import json
 import edge_tts
 from aiocache import SimpleMemoryCache
+import vosk
+import sounddevice as sd
 
 cache = SimpleMemoryCache()
 
 app = Quart(__name__)
 
+# Vosk 语音识别模型初始化
+model = vosk.Model("model/vosk-model-small-cn-0.22")
+sample_rate = 16000
 
 @app.route('/')
 async def home():
@@ -49,6 +56,16 @@ async def ms_tts_async(text_input, voice="zh-CN-XiaoxiaoNeural"):
     async for chunked in communicate.stream():
         if chunked["type"] == "audio":
             yield chunked["data"]
+
+
+@app.route('/recognize', methods=['POST'])
+async def recognize():
+    data = await request.get_data()
+    audio = np.frombuffer(data, dtype=np.int16)
+    rec = vosk.KaldiRecognizer(model, sample_rate)
+    rec.AcceptWaveform(audio)
+    result = json.loads(rec.Result())
+    return jsonify(result)
 
 
 if __name__ == '__main__':
